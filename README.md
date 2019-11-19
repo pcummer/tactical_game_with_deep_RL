@@ -8,6 +8,7 @@ Features:
 * AI powered by deep Q-learning, a type of reinforcement learning with deep neural networks
 * GUI with intuitive controls for ease of play
 * Extensible object-oriented design
+* Seamless C#/Python integration
 
 Where it's going:
 * Online training regimen for AI to adapt in near real time
