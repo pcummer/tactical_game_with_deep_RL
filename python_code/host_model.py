@@ -1,6 +1,5 @@
 # import the necessary packages
 from tensorflow import keras
-from PIL import Image
 import numpy as np
 import flask
 import io
