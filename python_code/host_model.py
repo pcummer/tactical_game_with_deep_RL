@@ -1,8 +1,6 @@
-# import the necessary packages
 from tensorflow import keras
 import numpy as np
 import flask
-import io
 import os
 from datetime import datetime
 
@@ -14,7 +12,7 @@ total_vision_length = 13
 random_threshold = 0.8
 
 training_directory = 'training_data/'
-discount = 0.99
+discount = 0.90
 batch_size = 128
 data_full = np.array([], dtype=object).reshape(0,3)
 
@@ -36,7 +34,6 @@ def predict():
     # ensure an image was properly uploaded to our endpoint
     if flask.request.method == "POST":
         if flask.request.form:
-            # read the image in PIL format
             data = flask.request.form
 
             data = np.asarray([value for value in data.to_dict().values()])
@@ -57,24 +54,14 @@ def predict():
             if np.random.rand(1) > random_threshold or output == 0:
                 output = np.random.randint(0, 5, 1)[0]
 
-
-            # indicate that the request was a success
-            #data["success"] = True
-
-    # return the data dictionary as a JSON response
     return str(output)
 
 @app.route("/save", methods=["POST"])
 def save():
-    # initialize the data dictionary that will be returned from the
-    # view
-    # data = {"success": False}
     global data_full
 
-    # ensure an image was properly uploaded to our endpoint
     if flask.request.method == "POST":
         if flask.request.form:
-            # read the image in PIL format
             data = flask.request.form
 
             data = np.asarray([value for value in data.to_dict().values()])
