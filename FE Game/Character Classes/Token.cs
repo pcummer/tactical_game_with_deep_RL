@@ -13,7 +13,7 @@ namespace FE_Game.Character_Classes
         public bool active;
         public System.Drawing.Color color = System.Drawing.Color.Silver;
         public int Score;
-        public double Reward;
+        public double Reward = 0;
 
         public void Attack(Token Enemy)
         {
@@ -22,10 +22,9 @@ namespace FE_Game.Character_Classes
             if (Character.Skill-Enemy.Character.Skill + random.Next(0,100) > 5)
             {
                 Enemy.Character.TakePhysicalDamage(Character.Strength);
-                Reward += Character.Strength - Enemy.Character.Armor;
             }
 
-            if(Enemy.Character.Alive == true & Enemy.Character.Skill - Character.Skill + 100 * random.Next(0, 100) > 5)
+            if (Enemy.Character.Alive == true & Enemy.Character.Skill - Character.Skill + 100 * random.Next(0, 100) > 5)
             {
                 Character.TakePhysicalDamage(Enemy.Character.Strength);
             }
@@ -38,14 +37,25 @@ namespace FE_Game.Character_Classes
             if (Character.Alive == true & Character.Skill - Enemy.Character.Skill + 100 * random.Next(0, 100) > 5 & Character.Speed - Enemy.Character.Speed > Enemy.Character.Speed / 2)
             {
                 Enemy.Character.TakePhysicalDamage(Character.Strength);
-                Reward += Character.Strength - Enemy.Character.Armor;
             }
 
             active = false;
 
-            if(Enemy.Character.Alive == false)
+            if (Character.Speed - Enemy.Character.Speed > Enemy.Character.Speed / 2)
             {
-                Reward += 10;
+                // Expected value of damage dealt in attack with double attack
+                Reward += 2 * Math.Max(Character.Strength - Enemy.Character.Armor, 1.0) * (95 + Character.Skill - Enemy.Character.Skill) / 100;
+            }
+            else
+            {
+                // Expected value of single attack
+                Reward += Math.Max(Character.Strength - Enemy.Character.Armor, 1.0) * (95 + Character.Skill - Enemy.Character.Skill) / 100;
+            }
+
+            if (Enemy.Character.Alive == false)
+            {
+                // Extra reward for killing enemy
+                Reward += 5;
             }
 
             if(Character.Ally == true & Enemy.Character.Alive == false)

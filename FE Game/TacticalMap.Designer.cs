@@ -28,25 +28,13 @@
         /// </summary>
         private void InitializeComponent()
         {
-            this.buttonSave = new System.Windows.Forms.Button();
             this.SuspendLayout();
-            // 
-            // buttonSave
-            // 
-            this.buttonSave.Location = new System.Drawing.Point(1167, 50);
-            this.buttonSave.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
-            this.buttonSave.Name = "buttonSave";
-            this.buttonSave.Size = new System.Drawing.Size(100, 28);
-            this.buttonSave.TabIndex = 0;
-            this.buttonSave.Text = "SaveHistory";
-            this.buttonSave.UseVisualStyleBackColor = true;
             // 
             // TacticalMap
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(1392, 693);
-            this.Controls.Add(this.buttonSave);
             this.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.Name = "TacticalMap";
             this.Text = "Tactical Map";
@@ -56,8 +44,6 @@
         }
 
         #endregion
-
-        private System.Windows.Forms.Button buttonSave;
     }
 }
 
