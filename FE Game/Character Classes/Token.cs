@@ -89,8 +89,8 @@ namespace FE_Game.Character_Classes
                 }
                 if(Character.Alive == false)
                 {
-                    Character = null;
-                    color = System.Drawing.Color.DarkSalmon;
+                    // Character = null;
+                    color = System.Drawing.Color.Silver;
                 }
             }
         }

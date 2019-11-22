@@ -160,12 +160,15 @@ namespace FE_Game
         
         private void MoveCharacter(Token leaving, Token arriving)
         {
+            Character temp_character = arriving.Character;
+            bool temp_active = arriving.active;
+            double temp_reward = arriving.Reward;
             arriving.Character = leaving.Character;
             arriving.active = true;
             arriving.Reward = leaving.Reward;
-            leaving.Character = null;
-            leaving.active = false;
-            leaving.Reward = 0;
+            leaving.Character = temp_character;
+            leaving.active = temp_active;
+            leaving.Reward = temp_reward;
             SelectedToken = arriving;
         }
 
@@ -265,7 +268,10 @@ namespace FE_Game
             var token = (Token)ReverseTokenTileCorrespondence[picture];
             if (!(token.Character == null))
             {
-                DisplayText(CharacterInformation(token));
+                if (token.Character.Alive == true)
+                {
+                    DisplayText(CharacterInformation(token));
+                }
             }
             else
             {
@@ -300,7 +306,7 @@ namespace FE_Game
                 }
             }
             UpdateColors();
-            await EnemyTurnAsync();
+            await AITurnAsync(false);
             UpdateColors();
             SelectedToken = null;
         }
@@ -336,19 +342,33 @@ namespace FE_Game
                         {
                             Map[i, j].Character.MovementRange = Map[i, j].Character.MaxMovementRange;
                             Map[i, j].active = true;
-                            if(Map[i,j].Character.Ally == true)
+                            if (Map[i, j].Character.Ally == true & Map[i, j].Character.Alive == true)
                             {
                                 count_allies += 1;
                             }
                             else
+                            if (Map[i, j].Character.Alive == true)
                             {
-                                count_enemies += 1;
+                                {
+                                    count_enemies += 1;
+                                }
                             }
                         }
                     }
                 }
                 UpdateColors();
-                if(count_allies == 0 | count_enemies == 0 | time_counter > 20)
+                if(count_allies == 0 | count_enemies == 0)
+                {
+                    await SendGameOutcome();
+                    await SendTrainCommand(1);
+                    time_counter = 0;
+                    AlliedReward = 0;
+                    EnemyReward = 0;
+                    ReinitializeMap();
+                    UpdateColors();
+                }
+
+                if (time_counter > 30)
                 {
                     await SendTrainCommand(1);
                     time_counter = 0;
@@ -357,10 +377,40 @@ namespace FE_Game
                     ReinitializeMap();
                     UpdateColors();
                 }
+
                 await AITurnAsync(false);
                 UpdateColors();
                 SelectedToken = null;
                 DisplayReward("Ally: " + AlliedReward.ToString() + System.Environment.NewLine + "Enemy: " + EnemyReward.ToString());
+            }
+        }
+
+        private async Task SendGameOutcome()
+        {
+            Random random = new Random();
+            for (int i = 0; i < MapWidth; i++)
+            {
+                for (int j = 0; j < MapHeight; j++)
+                {
+                    if (Map[i, j].Character != null)
+                    {
+                        Character character = Map[i, j].Character;
+                        SelectedToken = Map[i, j];
+                        GenerateFeaturesForModel();
+
+                        if (CheckTeamAlive(!character.Ally) == false)
+                        {
+                            await SendRewardAsync(random.Next(0, 5), 20);
+                        }
+                        else
+                        {
+                            if (CheckTeamAlive(character.Ally) == false)
+                            {
+                                await SendRewardAsync(random.Next(0, 5), -20);
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -402,7 +452,7 @@ namespace FE_Game
                     //Map[i, j].Score = 0;
                     if (Map[i, j].Character != null)
                     {
-                        if (Map[i, j].Character.Ally == ally)
+                        if (Map[i, j].Character.Ally == ally & Map[i, j].Character.Alive == true)
                         {
                             count_team += 1;
                         }
@@ -482,7 +532,7 @@ namespace FE_Game
             double reward = 0;
             // if (CheckTeamAlive(!ally) == false)
             // {
-            //     reward += 50;
+            //    reward += 20;
             // }
             // reward += CountAdjacentAllies(ally, x, y) * 0.1;
             // reward += CountAdjacentAllies(!ally, x, y) * 0.5;
@@ -508,10 +558,21 @@ namespace FE_Game
             {
                 for (int j = 0; j < MapHeight; j++)
                 {
-                    if (Map[i, j].Character == null & DistanceBetweenTokens(token, Map[i, j]) <= token.Character.MovementRange * GridSpacing)
+                    if (Map[i, j].Character == null)
                     {
-                        Map[i, j].color = Color.GreenYellow;
-                        TokenTileCorrespondence[Map[i, j]].BackColor = Map[i, j].color;
+                        if (DistanceBetweenTokens(token, Map[i, j]) <= token.Character.MovementRange * GridSpacing)
+                        {
+                            Map[i, j].color = Color.GreenYellow;
+                            TokenTileCorrespondence[Map[i, j]].BackColor = Map[i, j].color;
+                        }
+                    }
+                    else
+                    {
+                        if (Map[i, j].Character.Alive == false & DistanceBetweenTokens(token, Map[i, j]) <= token.Character.MovementRange * GridSpacing)
+                        {
+                            Map[i, j].color = Color.GreenYellow;
+                            TokenTileCorrespondence[Map[i, j]].BackColor = Map[i, j].color;
+                        }
                     }
                 }
             }
@@ -521,20 +582,34 @@ namespace FE_Game
         {
             var targettoken = (Token)ReverseTokenTileCorrespondence[picture];
             var selectedpicture = (PictureBox)TokenTileCorrespondence[SelectedToken];
-            if (targettoken.Character == null & DistanceBetweenTokens(SelectedToken,targettoken) <= SelectedToken.Character.MovementRange * GridSpacing)
+            if (targettoken.Character == null)
             {
-                SelectedToken.Character.MovementRange -= DistanceBetweenTokens(SelectedToken, targettoken) / GridSpacing;
-                //ScoreAndSave(targettoken);
-                MoveCharacter(SelectedToken, targettoken);
+                if (DistanceBetweenTokens(SelectedToken,targettoken) <= SelectedToken.Character.MovementRange * GridSpacing)
+                {
+                    SelectedToken.Character.MovementRange -= DistanceBetweenTokens(SelectedToken, targettoken) / GridSpacing;
+                    MoveCharacter(SelectedToken, targettoken);
+                }
             }
             else
             {
-                if (DistanceBetweenTokens(SelectedToken,targettoken) == GridSpacing & targettoken.Character != null)
+                if (targettoken.Character.Alive == true)
                 {
-                    if (SelectedToken.Character.Ally != targettoken.Character.Ally)
+                    if (DistanceBetweenTokens(SelectedToken, targettoken) == GridSpacing & SelectedToken.Character.Ally != targettoken.Character.Ally)
                     {
-                        //ScoreAndSave(targettoken);
                         SelectedToken.Attack(targettoken);
+                    }
+                    else
+                    {
+                        // penalty for invalid move
+                        SelectedToken.Reward -= 0.1;
+                    }
+                }
+                else
+                {
+                    if (DistanceBetweenTokens(SelectedToken, targettoken) <= SelectedToken.Character.MovementRange * GridSpacing)
+                    {
+                        SelectedToken.Character.MovementRange -= DistanceBetweenTokens(SelectedToken, targettoken) / GridSpacing;
+                        MoveCharacter(SelectedToken, targettoken);
                     }
                 }
             }
@@ -566,6 +641,7 @@ namespace FE_Game
 
         private async Task AITurnAsync(bool ally)
         {
+            Random random = new Random();
             for (int i = 0; i < MapWidth; i++)
             {
                 for (int j = 0; j < MapHeight; j++)
@@ -588,7 +664,8 @@ namespace FE_Game
                                             SelectedToken.Reward = 0;
                                             await GetPredictionAsync();
                                             int[] targetcoordinates = DecodePrediction(Target, i, j);
-                                            PathfindingImproved(i, j, targetcoordinates[0], targetcoordinates[1], character.MovementRange);
+                                            // PathfindingImproved(i, j, targetcoordinates[0], targetcoordinates[1], character.MovementRange);
+                                            MoveOrAttack(TokenTileCorrespondence[Map[targetcoordinates[0], targetcoordinates[1]]]);
                                             SelectedToken.Reward += CheckReward(character.Ally, TokenTileCorrespondence[SelectedToken].Location.X / GridSpacing, TokenTileCorrespondence[SelectedToken].Location.Y / GridSpacing);
                                             if (ally)
                                             {
@@ -598,6 +675,7 @@ namespace FE_Game
                                             {
                                                 EnemyReward += SelectedToken.Reward;
                                             }
+                                            UpdateColors();
                                             await SendRewardAsync(Target, SelectedToken.Reward);
                                         }
                                         else
@@ -606,48 +684,12 @@ namespace FE_Game
                                         }
                                     }
                                 }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-
-        private async Task EnemyTurnAsync()
-        {
-            for(int i = 0; i<MapWidth; i++)
-            {
-                for(int j = 0; j<MapHeight;j++)
-                {
-                    if (Map[i, j].Character != null)
-                    {
-                        if (Map[i, j].Character.Ally == false)
-                        {
-                            if (Map[i, j].active == true)
-                            {
-                                if (Map[i, j].Character.Alive == true)
+                                else
                                 {
-                                    Character enemy = Map[i, j].Character;
+                                    Character character = Map[i, j].Character;
                                     SelectedToken = Map[i, j];
-                                    for (int k = 0; k < enemy.MovementRange; k++)
-                                    {
-                                        if (SelectedToken.active == true & enemy.Alive == true)
-                                        {
-                                            GenerateFeaturesForModel();
-                                            SelectedToken.Reward = 0;
-                                            await GetPredictionAsync();
-                                            int[] targetcoordinates = DecodePrediction(Target, i, j);
-                                            PathfindingImproved(i, j, targetcoordinates[0], targetcoordinates[1], enemy.MovementRange);
-                                            SelectedToken.Reward += CheckReward(enemy.Ally, TokenTileCorrespondence[SelectedToken].Location.X / GridSpacing, TokenTileCorrespondence[SelectedToken].Location.Y / GridSpacing);
-                                            EnemyReward += SelectedToken.Reward;
-                                            await SendRewardAsync(Target, SelectedToken.Reward);
-                                        }
-                                        else
-                                        {
-                                            break;
-                                        }
-                                    }
+                                    GenerateFeaturesForModel();
+                                    await SendRewardAsync(random.Next(0, 5), 0.0);
                                 }
                             }
                         }
@@ -693,49 +735,6 @@ namespace FE_Game
             temp_target[1] = BindIntWithinMapHeight(temp_target[1]);
 
             return temp_target;
-        }
-
-        private async Task AlliedTurn()
-        {
-            Random random = new Random();
-            for (int i = 0; i < MapWidth; i++)
-            {
-                for (int j = 0; j < MapHeight; j++)
-                {
-                    if (Map[i, j].Character != null)
-                    {
-                        if (Map[i, j].Character.Ally != false)
-                        {
-                            if (Map[i, j].active == true)
-                            {
-                                if (Map[i, j].Character.Alive == true)
-                                {
-                                    Character ally = Map[i, j].Character;
-                                    SelectedToken = Map[i, j];
-                                    for (int k = 0; k < ally.MovementRange; k++)
-                                    {
-                                        if (SelectedToken.active == true & ally.Alive == true)
-                                        {
-                                            GenerateFeaturesForModel();
-                                            SelectedToken.Reward = 0;
-                                            await GetPredictionAsync();
-                                            int[] targetcoordinates = DecodePrediction(Target, i, j);
-                                            PathfindingImproved(i, j, targetcoordinates[0], targetcoordinates[1], ally.MovementRange);
-                                            SelectedToken.Reward += CheckReward(ally.Ally, TokenTileCorrespondence[SelectedToken].Location.X / GridSpacing, TokenTileCorrespondence[SelectedToken].Location.Y / GridSpacing);
-                                            AlliedReward += SelectedToken.Reward;
-                                            await SendRewardAsync(Target, SelectedToken.Reward);
-                                        }
-                                        else
-                                        {
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
         }
 
         private int BindIntWithinMapHeight(int y)
