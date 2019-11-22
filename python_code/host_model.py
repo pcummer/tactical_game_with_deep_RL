@@ -10,7 +10,7 @@ app = flask.Flask(__name__)
 model = None
 feature_depth = 10
 total_vision_length = 13
-random_threshold = 0.8
+random_threshold = 0.5
 
 training_directory = 'training_data/'
 discount = 0.80
@@ -30,14 +30,9 @@ def load_model():
 
 @app.route("/predict", methods=["POST"])
 def predict():
-    # initialize the data dictionary that will be returned from the
-    # view
-    # data = {"success": False}
-
-    # ensure an image was properly uploaded to our endpoint
+    global random_threshold
     if flask.request.method == "POST":
         if flask.request.form:
-            # read the image in PIL format
             data = flask.request.form
 
             data = np.asarray([value for value in data.to_dict().values()])
@@ -57,6 +52,7 @@ def predict():
             output = np.argmax(prediction)
             if np.random.rand(1) > random_threshold or output == 0:
                 output = np.random.randint(0, 5, 1)[0]
+            random_threshold += 0.001 * (1 - random_threshold)
 
     return str(output)
 
