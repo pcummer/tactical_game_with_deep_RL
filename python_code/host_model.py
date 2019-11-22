@@ -1,3 +1,4 @@
+# import the necessary packages
 from tensorflow import keras
 import numpy as np
 import flask
@@ -12,7 +13,7 @@ total_vision_length = 13
 random_threshold = 0.8
 
 training_directory = 'training_data/'
-discount = 0.90
+discount = 0.80
 batch_size = 128
 data_full = np.array([], dtype=object).reshape(0,3)
 
@@ -22,7 +23,9 @@ def load_model():
     # pre-trained on ImageNet and provided by Keras, but you can
     # substitute in your own networks just as easily)
     global model
-    model = keras.models.load_model('model_v2.h5')
+    model = keras.models.load_model('model_v5.h5')
+    optimizer = keras.optimizers.Adam(lr=0.00005)
+    model.compile(optimizer=optimizer, loss='mse')
 
 
 @app.route("/predict", methods=["POST"])
@@ -34,6 +37,7 @@ def predict():
     # ensure an image was properly uploaded to our endpoint
     if flask.request.method == "POST":
         if flask.request.form:
+            # read the image in PIL format
             data = flask.request.form
 
             data = np.asarray([value for value in data.to_dict().values()])
@@ -58,6 +62,7 @@ def predict():
 
 @app.route("/save", methods=["POST"])
 def save():
+
     global data_full
 
     if flask.request.method == "POST":
@@ -81,6 +86,7 @@ def save():
 
             data_formatted_3D = data_formatted_3D.astype(float)
             data_full = np.concatenate((data_full, np.expand_dims(np.array((data_formatted_3D, action, reward)),axis=0)),axis=0)
+            data_full = data_full[-512:]
             np.save('training_data/' + str(action) + '_' + str(reward) + '_'+ str(datetime.now().timestamp()) + '.npy',data_formatted_3D)
     return 'done'
 
@@ -94,7 +100,6 @@ def train():
             data = np.asarray([value for value in data.to_dict().values()])
             batches = data[0]
             batches = int(batches)
-            model.compile(optimizer='adam', loss='mse')
 
             for j in range(0, batches):
                 target = np.array([], dtype='float32').reshape(0, 5)
@@ -108,12 +113,27 @@ def train():
                     q_values_last = model.predict(np.expand_dims(data_last, axis=0))
                     q_values_next = model.predict(np.expand_dims(data_next, axis=0))
                     q_values_last[0, action] = reward + discount * np.max(q_values_next)
+
+                    if(np.random.rand(1) > 0.5):
+                        data_last = np.flip(data_last, 0)
+                        q_flipped_lr = q_values_last
+                        q_flipped_lr[0, 1] = q_values_last[0, 2]
+                        q_flipped_lr[0, 2] = q_values_last[0, 1]
+                        q_values_last = q_flipped_lr
+
+                    if(np.random.rand(1) > 0.5):
+                        data_last = np.flip(data_last, 1)
+                        q_flipped_ud = q_values_last
+                        q_flipped_ud[0, 3] = q_values_last[0, 4]
+                        q_flipped_ud[0, 4] = q_values_last[0, 3]
+                        q_values_last = q_flipped_ud
+
                     target = np.concatenate((target, q_values_last), axis=0)
                     features = np.concatenate((features, np.expand_dims(data_last, axis=0)))
 
-                model.fit(features, target.astype(float), epochs=50)
+                model.fit(features, target.astype(float), epochs=25)
 
-            model.save('model_v2.h5')
+            model.save('model_v5.h5')
     return 'done'
 
 
