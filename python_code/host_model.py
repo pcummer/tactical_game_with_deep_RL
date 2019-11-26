@@ -8,28 +8,27 @@ from datetime import datetime
 # initialize our Flask application and the Keras model
 app = flask.Flask(__name__)
 model = None
-feature_depth = 10
-total_vision_length = 13
-random_threshold = 0.5
+feature_depth = 10 # number of feature channels
+total_vision_length = 13 # height and width of visible region
+random_threshold = 0.5 # initial probability of selecting random action for epsilon greedy strategy
 
 training_directory = 'training_data/'
-discount = 0.80
-batch_size = 128
+discount = 0.80 # discount for future rewards
+batch_size = 128 # number of samples from memory buffer for model update
 data_full = np.array([], dtype=object).reshape(0,3)
 
 
 def load_model():
-    # load the pre-trained Keras model (here we are using a model
-    # pre-trained on ImageNet and provided by Keras, but you can
-    # substitute in your own networks just as easily)
+    # load the pre-trained Keras model
     global model
-    model = keras.models.load_model('model_v5.h5')
+    model = keras.models.load_model('model_v6.h5')
     optimizer = keras.optimizers.Adam(lr=0.00005)
     model.compile(optimizer=optimizer, loss='mse')
 
 
 @app.route("/predict", methods=["POST"])
 def predict():
+    # endpoint that takes a board state and returns an action
     global random_threshold
     if flask.request.method == "POST":
         if flask.request.form:
@@ -52,13 +51,13 @@ def predict():
             output = np.argmax(prediction)
             if np.random.rand(1) > random_threshold or output == 0:
                 output = np.random.randint(0, 5, 1)[0]
-            random_threshold += 0.001 * (1 - random_threshold)
+            random_threshold += 0.0001 * (1 - random_threshold)
 
     return str(output)
 
 @app.route("/save", methods=["POST"])
 def save():
-
+    # endpoint that takes a pair of states, intermediate action, and reward and loads into memory buffer
     global data_full
 
     if flask.request.method == "POST":
@@ -89,6 +88,7 @@ def save():
 
 @app.route("/train", methods=["POST"])
 def train():
+    # endpoint that takes a number of updates and performs that many model updates
     if flask.request.method == "POST":
         if flask.request.form:
             data = flask.request.form
@@ -127,9 +127,9 @@ def train():
                     target = np.concatenate((target, q_values_last), axis=0)
                     features = np.concatenate((features, np.expand_dims(data_last, axis=0)))
 
-                model.fit(features, target.astype(float), epochs=25)
+                model.fit(features, target.astype(float), epochs=5)
 
-            model.save('model_v5.h5')
+            model.save('model_v6.h5')
     return 'done'
 
 

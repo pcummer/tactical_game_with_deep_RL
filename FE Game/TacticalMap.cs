@@ -23,13 +23,14 @@ namespace FE_Game
         Token[,] Map;
         Dictionary<Token, PictureBox> TokenTileCorrespondence = new Dictionary<Token, PictureBox>();
         Dictionary<PictureBox, Token> ReverseTokenTileCorrespondence = new Dictionary<PictureBox, Token>();
-        int MapHeight = 8;
-        int MapWidth = 8;
+        int MapHeight = 5;
+        int MapWidth = 5;
         int GridSize = 20;
         int GridSpacing = 30;
         Token SelectedToken;
         double AlliedReward = 0;
         double EnemyReward = 0;
+        Random RandomGlobal = new Random();
         int[] GameState;
         int StateLength = 10;
         int VisionLength = 7;
@@ -129,20 +130,18 @@ namespace FE_Game
 
         private void PlaceEnemyCharacters()
         {
-            Random random = new Random(1);
-            Map[random.Next(0, MapWidth), random.Next(0, MapHeight)].Character = new EnemyCharacter(new Exorcist(),1);
-            Map[random.Next(0, MapWidth), random.Next(0, MapHeight)].Character = new EnemyCharacter(new VillageChief(), 1);
-            Map[random.Next(0, MapWidth), random.Next(0, MapHeight)].Character = new EnemyCharacter(new Scout(), 1);
-            Map[random.Next(0, MapWidth), random.Next(0, MapHeight)].Character = new EnemyCharacter(new Scout(), 1);
+            Map[RandomGlobal.Next(0, MapWidth), RandomGlobal.Next(0, MapHeight)].Character = new EnemyCharacter(new Exorcist(),1);
+            Map[RandomGlobal.Next(0, MapWidth), RandomGlobal.Next(0, MapHeight)].Character = new EnemyCharacter(new VillageChief(), 1);
+            Map[RandomGlobal.Next(0, MapWidth), RandomGlobal.Next(0, MapHeight)].Character = new EnemyCharacter(new Scout(), 1);
+            Map[RandomGlobal.Next(0, MapWidth), RandomGlobal.Next(0, MapHeight)].Character = new EnemyCharacter(new Scout(), 1);
         }
 
         private void PlaceTrainPlayerTeam()
         {
-            Random random = new Random(2);
-            Map[random.Next(0, MapWidth), random.Next(0, MapHeight)].Character = new PlayerCharacter("Starting Zombie", new Zombie(), 9, 6, 2, 3, 4, 3, 3);
-            Map[random.Next(0, MapWidth), random.Next(0, MapHeight)].Character = new PlayerCharacter("Starting Gladiator", new Gladiator(), 8, 4, 1, 5, 5, 4, 2);
-            Map[random.Next(0, MapWidth), random.Next(0, MapHeight)].Character = new PlayerCharacter("Starting Hedge Wizard", new HedgeWizard(), 7, 2, 5, 4, 4, 1, 3);
-            Map[random.Next(0, MapWidth), random.Next(0, MapHeight)].Character = new PlayerCharacter("Starting Witch Doctor", new HedgeWizard(), 5, 3, 4, 5, 5, 8, 1);
+            Map[RandomGlobal.Next(0, MapWidth), RandomGlobal.Next(0, MapHeight)].Character = new PlayerCharacter("Starting Zombie", new Zombie(), 9, 6, 2, 3, 4, 3, 3);
+            Map[RandomGlobal.Next(0, MapWidth), RandomGlobal.Next(0, MapHeight)].Character = new PlayerCharacter("Starting Gladiator", new Gladiator(), 8, 4, 1, 5, 5, 4, 2);
+            Map[RandomGlobal.Next(0, MapWidth), RandomGlobal.Next(0, MapHeight)].Character = new PlayerCharacter("Starting Hedge Wizard", new HedgeWizard(), 7, 2, 5, 4, 4, 1, 3);
+            Map[RandomGlobal.Next(0, MapWidth), RandomGlobal.Next(0, MapHeight)].Character = new PlayerCharacter("Starting Witch Doctor", new HedgeWizard(), 5, 3, 4, 5, 5, 8, 1);
         }
 
         private void AddPictureBox(int i, int j, Token token)
