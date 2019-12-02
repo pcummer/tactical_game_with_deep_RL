@@ -729,7 +729,7 @@ namespace FE_Game
             if (prediction == 4)
             {
                 temp_target[0] = x;
-                temp_target[1] = y + 1;
+                temp_target[1] = y - 1;
             }
 
             temp_target[0] = BindIntWithinMapWidth(temp_target[0]);
