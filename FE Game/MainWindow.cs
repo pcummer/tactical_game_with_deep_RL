@@ -12,6 +12,7 @@ namespace FE_Game
 {
     public partial class MainWindow : Form
     {
+        // The starting form from which the player begins the game
         TacticalMap tacticalMap = new TacticalMap();
         GameController gameController = new GameController();
         public MainWindow()

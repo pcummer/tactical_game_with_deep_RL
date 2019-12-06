@@ -10,7 +10,10 @@ app = flask.Flask(__name__)
 model = None
 feature_depth = 10 # number of feature channels
 total_vision_length = 13 # height and width of visible region
-random_threshold = 0.5 # initial probability of selecting random action for epsilon greedy strategy
+
+# we corrupt our predictions with 0 centered gaussian noise to encourage exploration in moments of relative ignorance
+gaussian_noise_mean = 0
+gaussian_noise_std = 1
 
 training_directory = 'training_data/'
 discount = 0.80 # discount for future rewards
@@ -30,6 +33,7 @@ def load_model():
 def predict():
     # endpoint that takes a board state and returns an action
     global random_threshold
+    global gaussian_noise_std
     if flask.request.method == "POST":
         if flask.request.form:
             data = flask.request.form
@@ -48,10 +52,9 @@ def predict():
 
             data_formatted_3D = data_formatted_3D.astype(float)
             prediction = model.predict(np.expand_dims(data_formatted_3D, axis=0))
+            prediction = prediction + np.random.normal(gaussian_noise_mean, gaussian_noise_std, (5))
+            gaussian_noise_std -= 0.0001 * (gaussian_noise_std)
             output = np.argmax(prediction)
-            if np.random.rand(1) > random_threshold or output == 0:
-                output = np.random.randint(0, 5, 1)[0]
-            random_threshold += 0.0001 * (1 - random_threshold)
 
     return str(output)
 

@@ -20,27 +20,44 @@ namespace FE_Game
 {
     public partial class TacticalMap : Form
     {
+        // The vast majority of the actual gameplay takes place within this class. It is primarily associated with the movement of
+        // characters around the board, including API calls to a tensorflow model for the AI and a UI for the player actions
+        // It can either be played as a human using the end turn button to call the AI to take its turn or it can be used to train
+        // the AI by playing it against itself
+
+        // Our core construction is a 2D array of token objects corresponding to a 2D array of picture boxes
+        // This tracks all the action on the backend by updating token properties and displays it on the UI by updating the picture boxes
+        // Note that the tokens do not move in the array, but rather swap properties to recreate the motion of pieces on the board
         Token[,] Map;
         Dictionary<Token, PictureBox> TokenTileCorrespondence = new Dictionary<Token, PictureBox>();
         Dictionary<PictureBox, Token> ReverseTokenTileCorrespondence = new Dictionary<PictureBox, Token>();
+
+        // Define the map shape and display size
         int MapHeight = 5;
         int MapWidth = 5;
         int GridSize = 20;
         int GridSpacing = 30;
+
+        // The selected token is that token which has the focus of the player or the AI
         Token SelectedToken;
+
+        // Track rewards for debugging AI
         double AlliedReward = 0;
         double EnemyReward = 0;
+
+        // Random variable used for randomly generating new board states
         Random RandomGlobal = new Random();
+
+        // Variables for encoding the game state from the perspective of the selected token; passed to the ai for decision making
         int[] GameState;
         int StateLength = 10;
         int VisionLength = 7;
-        int[,] GameHistory;
-        int Target;
-        int[,] NarrowGameHistory;
-        int[,] PermanentGameHistory;
-        private static readonly HttpClient client = new HttpClient();
-        CsvWriter RewardLogWriter = new CsvWriter(new System.IO.StreamWriter("reward_log.csv"));
 
+        // Prediction from the AI
+        int Target;
+
+        private static readonly HttpClient client = new HttpClient();
+        
         public TacticalMap()
         {
             InitializeComponent();
@@ -51,13 +68,12 @@ namespace FE_Game
             InitializeMap();
             PlaceEnemyCharacters();
             UpdateColors();
-            GameHistory = new int[100,StateLength * (2*VisionLength-1) * (2*VisionLength-1)];
-            NarrowGameHistory = new int[1000000, StateLength];
-            PermanentGameHistory = new int[1000000, StateLength];
         }
 
         public void PlacePlayerRoster(object roster)
         {
+            // Place a basic team of player characters
+            // To do: add support for permanent player teams
             Roster dummyroster = (Roster)roster;
             for (int i =0 ; i < dummyroster.ReturnCharacterArray().Length; i++)
             {
@@ -69,6 +85,7 @@ namespace FE_Game
 
         private void InitializeMap()
         {
+            // create the corresponding arrays of tokens and picture boxes
             Map = new Token[MapWidth, MapHeight];
             for (int i = 0; i < MapWidth; i++)
             {
@@ -78,6 +95,8 @@ namespace FE_Game
                     AddPictureBox(i, j, Map[i, j]);
                 }
             }
+
+            // add buttons and displays
             InitializeTextDisplay();
             InitializeEndTurn();
             InitializePlaySelf();
@@ -130,6 +149,7 @@ namespace FE_Game
 
         private void PlaceEnemyCharacters()
         {
+            // place basic team of opponents
             Map[RandomGlobal.Next(0, MapWidth), RandomGlobal.Next(0, MapHeight)].Character = new EnemyCharacter(new Exorcist(),1);
             Map[RandomGlobal.Next(0, MapWidth), RandomGlobal.Next(0, MapHeight)].Character = new EnemyCharacter(new VillageChief(), 1);
             Map[RandomGlobal.Next(0, MapWidth), RandomGlobal.Next(0, MapHeight)].Character = new EnemyCharacter(new Scout(), 1);
@@ -138,6 +158,7 @@ namespace FE_Game
 
         private void PlaceTrainPlayerTeam()
         {
+            // random initialization of player characters for AI training
             Map[RandomGlobal.Next(0, MapWidth), RandomGlobal.Next(0, MapHeight)].Character = new PlayerCharacter("Starting Zombie", new Zombie(), 9, 6, 2, 3, 4, 3, 3);
             Map[RandomGlobal.Next(0, MapWidth), RandomGlobal.Next(0, MapHeight)].Character = new PlayerCharacter("Starting Gladiator", new Gladiator(), 8, 4, 1, 5, 5, 4, 2);
             Map[RandomGlobal.Next(0, MapWidth), RandomGlobal.Next(0, MapHeight)].Character = new PlayerCharacter("Starting Hedge Wizard", new HedgeWizard(), 7, 2, 5, 4, 4, 1, 3);
@@ -146,13 +167,13 @@ namespace FE_Game
 
         private void AddPictureBox(int i, int j, Token token)
         {
+            // creates a new picture box, adds it to visual array on form, tracks its correspondence to a particular token on the backend
             var picturebox = new PictureBox();
             picturebox.Name = (String.Concat("picturebox", i, j));
             picturebox.Location = new Point(GridSize+i * GridSpacing,GridSize+ j * GridSpacing);
             picturebox.Size = new Size(GridSize, GridSize);
             picturebox.Click += new EventHandler(picturebox_click);
             picturebox.MouseHover += new EventHandler(picturebox_hover);
-            picturebox.DoubleClick += new EventHandler(picturebox_doubleclick);
             picturebox.BackColor = token.color;
             TokenTileCorrespondence.Add(token, picturebox);
             ReverseTokenTileCorrespondence.Add(picturebox, token);
@@ -161,6 +182,7 @@ namespace FE_Game
         
         private void MoveCharacter(Token leaving, Token arriving)
         {
+            // Swap characters between two tokens; this is the implementation of moving a character on the board
             Character temp_character = arriving.Character;
             bool temp_active = arriving.active;
             double temp_reward = arriving.Reward;
@@ -175,6 +197,7 @@ namespace FE_Game
 
         private void UpdateColors()
         {
+            // update picture box colors to display current board state
             for(int i = 0; i < MapWidth; i++)
             {
                 for(int j = 0; j< MapHeight; j++)
@@ -187,6 +210,8 @@ namespace FE_Game
         
         private void picturebox_click(object sender, EventArgs e)
         {
+            // allow player to select token if none is selected, or move/attack if a token is already selected
+            // subject to constraints to ensure it is a valid move according to game rules
             PictureBox picture = (PictureBox)sender;
             if (SelectedToken == null)
             {
@@ -217,54 +242,9 @@ namespace FE_Game
             
         }
 
-        private void picturebox_doubleclick(object sender, EventArgs e)
-        {
-            if(SelectedToken != null)
-            {
-                var picture = (PictureBox)sender;
-                var token = (Token)ReverseTokenTileCorrespondence[picture];
-                for(int i = 0; i < MapWidth; i++)
-                {
-                    for(int j = 0; j<MapHeight; j++)
-                    {
-                        if(token == Map[i,j])
-                        {
-                            Map[i, j].Score = 10;
-                        }
-                        else
-                        {
-                            Map[i, j].Score = 0;
-                        }
-                    }
-                }
-                // GenerateDataSet();
-                DisplayText("data generated");
-            }
-        }
-
-        private void ScoreAndSave(Token token)
-        {
-            for (int i = 0; i < MapWidth; i++)
-            {
-                for (int j = 0; j < MapHeight; j++)
-                {
-                    if (token == Map[i, j])
-                    {
-                        Map[i, j].Score = 10;
-                    }
-                    else
-                    {
-                        Map[i, j].Score = 0;
-                    }
-                }
-            }
-            //NarrowGenerateDataSet();
-            //AltGenerateDataSet();
-            //SaveGameHistory();
-        }
-
         private void picturebox_hover(object sender, EventArgs e)
         {
+            // shows character stats on hover over corresponding picture box
             var picture = (PictureBox)sender;
             var token = (Token)ReverseTokenTileCorrespondence[picture];
             if (!(token.Character == null))
@@ -294,11 +274,11 @@ namespace FE_Game
 
         private async void endturn_clickAsync(object sender, EventArgs e)
         {
+            // reset movement ranges, call AI turn
             for(int i = 0; i < MapWidth; i++)
             {
                 for(int j = 0; j<MapHeight; j++)
                 {
-                    //Map[i, j].Score = 0;
                     if(Map[i,j].Character != null)
                     {
                         Map[i, j].Character.MovementRange = Map[i, j].Character.MaxMovementRange;
@@ -314,6 +294,7 @@ namespace FE_Game
 
         private void ReinitializeMap()
         {
+            // create fresh game state for training
             for (int i = 0; i < MapWidth; i++)
             {
                 for (int j = 0; j < MapHeight; j++)
@@ -327,10 +308,17 @@ namespace FE_Game
 
         private async void playself_clickAsync(object sender, EventArgs e)
         {
+            // Set AI to play both teams for many games against itself
+            // Games end on one team being eliminated or max turn timer
+            // Model trains between games
             int time_counter = 0;
             Random random = new Random();
+
             for (int count = 0; count < 1000; count++){
+                // AI turn for playing as player team
                 await AITurnAsync(true);
+
+                // Normal end turn updates along with check that both teams still have at least one player
                 int count_enemies = 0;
                 int count_allies = 0;
                 time_counter++;
@@ -338,11 +326,13 @@ namespace FE_Game
                 {
                     for (int j = 0; j < MapHeight; j++)
                     {
-                        //Map[i, j].Score = 0;
                         if (Map[i, j].Character != null)
                         {
+                            // reset movement ranges
                             Map[i, j].Character.MovementRange = Map[i, j].Character.MaxMovementRange;
                             Map[i, j].active = true;
+
+                            // count characters on each team
                             if (Map[i, j].Character.Ally == true & Map[i, j].Character.Alive == true)
                             {
                                 count_allies += 1;
@@ -358,6 +348,8 @@ namespace FE_Game
                     }
                 }
                 UpdateColors();
+
+                // End game if one team is eliminated
                 if(count_allies == 0 | count_enemies == 0)
                 {
                     await SendGameOutcome();
@@ -369,6 +361,7 @@ namespace FE_Game
                     UpdateColors();
                 }
 
+                // End game if it has gone on too long
                 if (time_counter > 30)
                 {
                     await SendTrainCommand(1);
@@ -379,15 +372,20 @@ namespace FE_Game
                     UpdateColors();
                 }
 
+                // Call AI to play as enemy turn
                 await AITurnAsync(false);
                 UpdateColors();
                 SelectedToken = null;
+
+                // Show total rewards for each team
                 DisplayReward("Ally: " + AlliedReward.ToString() + System.Environment.NewLine + "Enemy: " + EnemyReward.ToString());
             }
         }
 
         private async Task SendGameOutcome()
         {
+            // Sends a large reward along with a random action if the team has won the game
+            // This reward will propogate to earlier state-action pairs via q-learning
             Random random = new Random();
             for (int i = 0; i < MapWidth; i++)
             {
@@ -415,34 +413,6 @@ namespace FE_Game
             }
         }
 
-        private double CheckFinalReward(bool ally)
-        {
-            double reward = 0;
-
-            for (int i = 0; i < MapWidth; i++)
-            {
-                for (int j = 0; j < MapHeight; j++)
-                {
-                    if (Map[i, j].Character != null)
-                    {
-                        if (Map[i, j].Character.Alive == true)
-                        {
-                            if (Map[i, j].Character.Ally == ally)
-                            {
-                                reward += 1;
-                            }
-                            else
-                            {
-                                reward -= 10;
-                            }
-                        }
-                    }
-                }
-            }
-
-            return reward;
-        }
-
         private bool CheckTeamAlive(bool ally)
         {
             int count_team = 0;
@@ -463,85 +433,17 @@ namespace FE_Game
             return count_team > 0;
         }
 
-        private double SumTeamReward(bool ally)
-        {
-            double total_reward = 0;
-
-            for (int i = 0; i < MapWidth; i++)
-            {
-                for (int j = 0; j < MapHeight; j++)
-                {
-                    //Map[i, j].Score = 0;
-                    if (Map[i, j].Character != null)
-                    {
-                        if (Map[i, j].Character.Ally == ally)
-                        {
-                            total_reward += Map[i,j].Reward;
-                        }
-                    }
-                }
-            }
-
-            return total_reward;
-        }
-
-        private int CountAdjacentAllies(bool ally, int x, int y)
-        {
-            int count_ally = 0;
-            int above = BindIntWithinMapHeight(y + 1);
-            int below = BindIntWithinMapHeight(y - 1);
-            int right = BindIntWithinMapWidth(x + 1);
-            int left = BindIntWithinMapWidth(x - 1);
-
-            if (above == y + 1 & Map[x,above].Character != null)
-            {
-                if(Map[x,above].Character.Ally == ally)
-                {
-                    count_ally += 1;
-                }
-            }
-
-            if (below == y - 1 & Map[x, below].Character != null)
-            {
-                if (Map[x, below].Character.Ally == ally)
-                {
-                    count_ally += 1;
-                }
-            }
-
-            if (right == x + 1 & Map[right, y].Character != null)
-            {
-                if (Map[right, y].Character.Ally == ally)
-                {
-                    count_ally += 1;
-                }
-            }
-
-            if (left == x - 1 & Map[left, y].Character != null)
-            {
-                if (Map[left, y].Character.Ally == ally)
-                {
-                    count_ally += 1;
-                }
-            }
-
-            return count_ally;
-        }
-
         private double CheckReward(bool ally, int x, int y)
         {
+            // placeholder for a more complex reward function
             double reward = 0;
-            // if (CheckTeamAlive(!ally) == false)
-            // {
-            //    reward += 20;
-            // }
-            // reward += CountAdjacentAllies(ally, x, y) * 0.1;
-            // reward += CountAdjacentAllies(!ally, x, y) * 0.5;
+
             return reward;
         }
 
         private void SelectToken(PictureBox picture)
         {
+            // Show movement range when player clicks on token
             if (ReverseTokenTileCorrespondence[picture].Character != null)
             {
                 if (ReverseTokenTileCorrespondence[picture].active == true & ReverseTokenTileCorrespondence[picture].Character.Ally == true)
@@ -555,6 +457,7 @@ namespace FE_Game
 
         private void DisplayMovementRange(Token token)
         {
+            // update colors to display movement range of selected character
             for (int i = 0; i < MapWidth; i++)
             {
                 for (int j = 0; j < MapHeight; j++)
@@ -581,6 +484,7 @@ namespace FE_Game
 
         private void MoveOrAttack(PictureBox picture)
         {
+            // Move or attack appropriately given a selected token and a target token
             var targettoken = (Token)ReverseTokenTileCorrespondence[picture];
             var selectedpicture = (PictureBox)TokenTileCorrespondence[SelectedToken];
             if (targettoken.Character == null)
@@ -616,33 +520,12 @@ namespace FE_Game
             }
         }
 
-        private void PathfindingImproved(int startx, int starty, int endx, int endy, int movementrange)
-        {
-            Boolean moved = false;
-            for(int k = 0; k < 3; k++)
-            {
-                for (int i = 0; i < MapWidth; i++)
-                {
-                    for (int j = 0; j < MapHeight; j++)
-                    {
-                        Character targetcharacter = Map[i, j].Character;
-                        int distancestart = Math.Abs(startx - i) + Math.Abs(starty - j);
-                        int distanceend = Math.Abs(endx - i) + Math.Abs(endy - j);
-                        if (targetcharacter == null & distancestart <= movementrange & distanceend < k & moved == false)
-                        {
-                            MoveOrAttack(TokenTileCorrespondence[Map[i, j]]);
-                            moved = true;
-                        }
-                    }
-                }
-
-            }
-            MoveOrAttack(TokenTileCorrespondence[Map[endx, endy]]);
-        }
-
         private async Task AITurnAsync(bool ally)
         {
+            // This has the AI move all the characters available for a given team. ally == true for player characters, ally == false for enemy
             Random random = new Random();
+
+            // Find tokens eligible for taking actions
             for (int i = 0; i < MapWidth; i++)
             {
                 for (int j = 0; j < MapHeight; j++)
@@ -657,6 +540,8 @@ namespace FE_Game
                                 {
                                     Character character = Map[i, j].Character;
                                     SelectedToken = Map[i, j];
+
+                                    // Move token one step at a time so loop over movement range
                                     for (int k = 0; k < character.MovementRange; k++)
                                     {
                                         if (SelectedToken.active == true & character.Alive == true)
@@ -701,6 +586,7 @@ namespace FE_Game
 
         private int[] DecodePrediction(int prediction, int x, int y)
         {
+            // convert classification label to coordinates
             int[] temp_target = new int[2];
             if (prediction == 0)
             {
@@ -783,6 +669,8 @@ namespace FE_Game
 
         public void GenerateFeaturesForModel()
         {
+            // creates a set of features from the perspective of the selected token
+            // these features are passed to the ai to make a decision on the next action
             GameState = new int[StateLength * (2 * VisionLength - 1) * (2 * VisionLength - 1)];
             int count = 0;
             int Xposition = TokenTileCorrespondence[SelectedToken].Location.X / GridSpacing;
@@ -909,6 +797,7 @@ namespace FE_Game
 
         private async Task GetPredictionAsync()
         {
+            // send game state and wait for prediction from ai
             var values = new Dictionary<string, string>{};
             int row_number = 0;
             foreach(int i in GameState)
@@ -924,6 +813,7 @@ namespace FE_Game
 
         private async Task SendRewardAsync(int action, double reward)
         {
+            // send state, action, next state, and reward for deep q-learning
             var values = new Dictionary<string, string> { };
             values.Add("action", action.ToString());
             values.Add("reward", reward.ToString());
@@ -947,6 +837,7 @@ namespace FE_Game
 
         private async Task SendTrainCommand(int batches)
         {
+            // tell AI to update based on new data
             var values = new Dictionary<string, string> { };
             values.Add("batches", batches.ToString());
      
